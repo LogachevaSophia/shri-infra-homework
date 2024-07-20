@@ -1,0 +1,119 @@
+
+
+name: Release
+
+on:
+  workflow_dispatch:
+
+env:
+  REGISTRY_ID: crptrd8lk685ga004qjq
+  IMAGE_NAME: shri-infra
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: npm ci
+
+  lint:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: |
+          # Команда для запуска линтера
+          npm run lint
+
+  tests:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: |
+          # Команда для запуска тестов
+          npm test
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [lint, tests]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Get the release version
+        id: get_version
+        run: echo "RELEASE_VERSION=${{ github.run_number }}" >> $GITHUB_ENV
+
+      - name: Create release branch
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b releases/${{ env.RELEASE_VERSION }}
+          git push origin releases/${{ env.RELEASE_VERSION }}
+
+      - name: Build Docker image
+        run: |
+          docker build . -t cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:${{ env.RELEASE_VERSION }} .
+          docker tag cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:${{ env.RELEASE_VERSION }} cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:${{ env.RELEASE_VERSION }}_latest
+
+      - name: Log in to Yandex Container Registry
+        run: |
+          echo "${{ secrets.YCR_TOKEN }}" | docker login --username json_key --password-stdin cr.yandex
+
+      - name: Push Docker image
+        run: |
+          docker push cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:${{ env.RELEASE_VERSION }}
+          docker push cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:${{ env.RELEASE_VERSION }}_latest
+
+      - name: Create release tag
+        run: |
+          git tag -a v${{ env.RELEASE_VERSION }} -m "Release ${{ env.RELEASE_VERSION }}"
+          git push origin v${{ env.RELEASE_VERSION }}
+
+      - name: Get previous release tag
+        id: get_prev_tag
+        run: echo "::set-output name=tag::$(git describe --tags --abbrev=0 --exclude v${{ env.RELEASE_VERSION }})"
+
+      - name: Get commits since last release
+        id: get_commits
+        run: |
+          PREV_TAG=${{ steps.get_prev_tag.outputs.tag }}
+          COMMITS=$(git log $PREV_TAG..HEAD --oneline)
+          echo "::set-output name=commits::$COMMITS"
+
+      - name: Create release issue
+        uses: actions-ecosystem/action-create-issue@v1
+        with:
+          title: Release ${{ env.RELEASE_VERSION }}
+          body: |
+            **Дата:** ${{ github.event.created_at }}
+            **Автор:** ${{ github.actor }}
+            **Номер версии:** ${{ env.RELEASE_VERSION }}
+            **Коммиты:**
+            ${{ steps.get_commits.outputs.commits }}
+            **Ссылка на Docker образ:**
+            cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:${{ env.RELEASE_VERSION }}
+
+      - name: Update CHANGELOG.md
+        run: |
+          echo -e "## ${{ env.RELEASE_VERSION }}\n\n${{ steps.get_commits.outputs.commits }}\n\n$(cat CHANGELOG.md)" > CHANGELOG.md
+          git add CHANGELOG.md
+          git commit -m "Update CHANGELOG for release ${{ env.RELEASE_VERSION }}"
+          git push origin main
+

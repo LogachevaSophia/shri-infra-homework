@@ -69,7 +69,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build . -t cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:${{ env.RELEASE_VERSION }} .
+          docker build . -t cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:${{ env.RELEASE_VERSION }}
           docker tag cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:${{ env.RELEASE_VERSION }} cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:${{ env.RELEASE_VERSION }}_latest
 
       - name: Log in to Yandex Container Registry

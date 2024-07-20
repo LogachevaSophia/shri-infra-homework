@@ -9,7 +9,7 @@ p.card-text {
 }
 
 .Image {
-    width: 100%;
+    width: 100%; 
     min-height: 140px;
     display: inline-flex;
     color: #999;

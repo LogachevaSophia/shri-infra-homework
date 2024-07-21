@@ -74,7 +74,7 @@ jobs:
 
       - name: Log in to Yandex Container Registry
         run: |
-          echo "${{ secrets.YCR_TOKEN }}" | docker login --username json_key --password-stdin cr.yandex
+          docker login --username oauth --password ${{ secrets.YCR_TOKEN }} cr.yandex
 
       - name: Push Docker image
         run: |

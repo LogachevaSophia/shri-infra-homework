@@ -101,7 +101,7 @@ jobs:
         uses: actions-ecosystem/action-create-issue@v1
         with:
           title: Release ${{ env.RELEASE_VERSION }}
-          github_token: ${{ secrets.github_token }}
+          github_token: ${{ secrets.token_github }}
           body: |
             **Дата:** ${{ github.event.created_at }}
             **Автор:** ${{ github.actor }}

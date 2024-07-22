@@ -1,0 +1,50 @@
+name: Deploy Release to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'The version of the release to deploy'
+        required: true
+        default: '1.0.0'
+      issue_number:
+        description: 'The issue number to comment on'
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Check Docker image
+      id: check_image
+      run: |
+        IMAGE_NAME="your-image:${{ github.event.inputs.release_version }}_latest"
+        if ! docker manifest inspect $IMAGE_NAME > /dev/null; then
+          echo "Image $IMAGE_NAME not found"
+          exit 1
+        fi
+        echo "::set-output name=image_name::$IMAGE_NAME"
+
+    - name: Deploy Docker image to VM
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      run: |
+        IMAGE_NAME="${{ steps.check_image.outputs.image_name }}"
+        ssh -i "$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no your-username@your-vm-host << EOF
+          docker pull $IMAGE_NAME
+          docker run -d $IMAGE_NAME
+        EOF
+
+    - name: Add comment to GitHub issue
+      uses: peter-evans/create-or-update-comment@v1
+      with:
+        token: ${{ secrets.token_github }}
+        issue-number: ${{ github.event.inputs.issue_number }}
+        body: |
+          The release ${{ github.event.inputs.release_version }} has been deployed to production.
+          Deployed by: ${{ github.actor }}
+          Date: $(date)
